@@ -10,11 +10,15 @@
 
 #define DIST 50
 
+#define H 360
+
 /*En este código se probará la recepción de los datos del sensor de orientación de la IMU 
  * Adafruit BNO055.
  * Se realizará la obtención de los datos a través de la biblioteca de Adafruit y la obtención 
  * del dato numérico en crudo.
  */
+
+ const double pi=3.141592;
 
 
 
@@ -65,12 +69,16 @@ void loop() {
 
   double cabeceoAnterior=0;
   double cabeceoPosterior=0;
+  double alabeoAnterior=0;
+  double alabeoPosterior=0;
 
   int pasosMotor1;
   int pasosMotor2;
+  int pasosMotor3;
+  int pasosMotor4;
   
   int TOL=2;
- 
+  double deg2rad= pi/180;
   sensors_event_t event;
   bno.getEvent (&event);
 
@@ -84,58 +92,102 @@ void loop() {
   
 
 
-  cabeceoPosterior=event.orientation.x //No estoy demasiado seguro de que sea el eje correcto
-
-  if(abs(cabeceoPosterior-cabeceoAnterior)>TOL) //Esta sentencia se puede omitir
+  cabeceoPosterior=event.orientation.y*deg2rad; //No estoy demasiado seguro de que sea el eje correcto
+  alabeoPosterior=event.orientation.z*deg2rad;
+  
+  if(abs(cabeceoPosterior-cabeceoAnterior)>TOL || abs(alabeoPosterior-alabeoAnterior)>TOL ) //Esta sentencia se puede omitir
   {
-  pasosMotor1=calcularPasos1D(cabeceoPosterior-cabeceoAnterior,RESOLUCION,RADIO_POLEA,DIST);
-  pasosMotor2=calcularPasos1D(cabeceoPosterior-cabeceoAnterior,RESOLUCION,RADIO_POLEA,-DIST);
+  
+pasosMotor1=calcularPasos2D(cabeceoPosterior-cabeceoAnterior,alabeoPosterior-alabeoAnterior,RESOLUCION,RADIO_POLEA,H,333,0,D_REF);
+pasosMotor2=calcularPasos2D(cabeceoPosterior-cabeceoAnterior,alabeoPosterior-alabeoAnterior,RESOLUCION,RADIO_POLEA,H,0,333,D_REF);
+pasosMotor3=calcularPasos2D(cabeceoPosterior-cabeceoAnterior,alabeoPosterior-alabeoAnterior,RESOLUCION,RADIO_POLEA,H,-333,0,D_REF);
+pasosMotor4=calcularPasos2D(cabeceoPosterior-cabeceoAnterior,alabeoPosterior-alabeoAnterior,RESOLUCION,RADIO_POLEA,H,0,-333,D_REF);
+  
   
   //AQUI iría la accion de movimiento
   
   
   cabeceoAnterior=cabeceoPosterior;
+  alabeoAnterior=alabeoPosterior;
   }
+
+    Serial.print ("Pasos motor 1: ");
+  Serial.print (pasosMotor1);
+      Serial.print ("        Pasos motor 2: ");
+  Serial.print (pasosMotor2);
+  Serial.print ("      Pasos motor 3: ");
+  Serial.print (pasosMotor3);
+  Serial.print ("    Pasos motor 4: ");
+  Serial.print (pasosMotor4);
+  Serial.println(" ");
   delay (200);
+
+
+/*
+     Serial.print ("Pasos motor 1: ");
+  Serial.print (calcularPasos2D(18*deg2rad,15*deg2rad,RESOLUCION,RADIO_POLEA,H,0,333,D_REF));           ESTO ES PARA PROBAR Y COMPARAR CON LA FORMULA DEL EXCEL
+      Serial.print ("        Pasos motor 2: ");
+  Serial.print (calcularPasos2D(18*deg2rad,15*deg2rad,RESOLUCION,RADIO_POLEA,H,333,0,D_REF));
+  Serial.print ("      Pasos motor 3: ");
+  Serial.print (calcularPasos2D(18*deg2rad,15*deg2rad,RESOLUCION,RADIO_POLEA,H,0,-333,D_REF));
+  Serial.print ("    Pasos motor 4: ");
+  Serial.print (calcularPasos2D(18*deg2rad,15*deg2rad,RESOLUCION,RADIO_POLEA,H,-333,0,D_REF));
+  Serial.println(" "); */
 }
 
 
 
 
-int calcularPasos1D(double cabeceo,double resolución,double radioPolea,double distCentro)
+int calcularPasos1D(double cabeceo,double resolucion,double radioPolea,double distCentro)
 { 
   double PASOS;
   double tangente= tan(cabeceo);
-  PASOS=(((tangente*distCentro)/(2*pi*radioPolea))*(360/resolución)) ;
+  PASOS=(((tangente*distCentro)/(2*pi*radioPolea))*(360/resolucion)) ;
 
   
-  int aux=(int)PASOS;
-  double aux2=PASOS-aux;
-
-  if(aux2>0.5)
-  aux++;
+  int aux=int(PASOS);
   
+  
+  double aux2=abs(PASOS)-abs(aux);
+  
+
+  
+  if(abs(aux2)>0.5)
+    {
+      if (aux>0)
+      aux++;
+      else
+      aux--;
+    }
+  
+
   
   return aux;
   
 }
 
 
-int calcularPasos2D(double cabeceo,double alabeo ,double resolución,double radioPolea,double h,double posX, double posY,double Dref)
+int calcularPasos2D(double cabeceo,double alabeo ,double resolucion,double radioPolea,double h,double posX, double posY,double Dref)
 {
     double PASOS;
   double tangenteCAB= tan(cabeceo);  //ES EL ANGULO RESPECTO EL EJE X
-  double tangeteAL= tan(alabeo); //ES EL ANGULO RESPECTO EL EJE Y
-  double numerador= (sqrt((tangenteCAB*h-posX)*(tangenteCAB*h-posX)+(tangenteAL*h-posY)*(tangenteAL*h-posY))-Dref);
+  double tangenteAL= tan(alabeo); //ES EL ANGULO RESPECTO EL EJE Y
+  double numerador= (sqrt((tangenteCAB*h-posY)*(tangenteCAB*h-posY)+(tangenteAL*h-posX)*(tangenteAL*h-posX))-Dref);
   
-  PASOS=((numerador/(2*pi*radioPolea))*(360/resolución)) ;
+  PASOS=((numerador/(2*pi*radioPolea))*(360/resolucion)) ;
 
   
   int aux=(int)PASOS;
   double aux2=PASOS-aux;
 
-  if(aux2>0.5)
-  aux++;
+    if(abs(aux2)>0.5)
+    {
+      if (aux>0)
+      aux++;
+      else
+      aux--;
+    }
+  
   
   
   return aux;
